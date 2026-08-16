@@ -1,4 +1,4 @@
-from typed import Str, Function, Maybe, Dict, Tuple, Int, Any, List
+from typed import Str, Func, Maybe, Dict, Tuple, Int, Any, List
 from concurrent.futures import ThreadPoolExecutor
 
 class thread:
@@ -17,13 +17,13 @@ class thread:
     def __iter__(self):
         return iter(self._futures.keys())
 
-    def new(self, name: Str, task: Function, *args: Tuple, **kwargs: Dict) -> None:
+    def new(self, name: Str, task: Func, *args: Tuple, **kwargs: Dict) -> None:
         if name in self._futures:
             raise ValueError(f"Task with name '{name}' already exists.")
         future = self._executor.submit(task, *args, **kwargs)
         self._futures[name] = future
 
-    def restart(self, name: Str, task: Function, *args: Tuple, **kwargs: Dict) -> None:
+    def restart(self, name: Str, task: Func, *args: Tuple, **kwargs: Dict) -> None:
         future = self._futures.get(name)
         if future is None:
             raise KeyError(f"No task found with name '{name}'.")
