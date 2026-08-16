@@ -1,56 +1,103 @@
+from typed import Str, Dict, Bool
 from typed.func import service, action
 from utils.path import File
+from runtime.mods.env.types import Envs, EnvValue, EnvFile, Env
 from runtime.mods.env.err import EnvErr
 
-@service(err=EnvErr)
-class env:
-    @typed
-    def all(envpath: Maybe(Path)=None) -> Dict:
-        if not envpath:
-            envpath = env.dotenv()
-            if not envpath:
-                envpath = '.env'
-        if not path.exists(envpath):
-            raise EnvErr(f".env file not found at '{envpath}'.")
-        with open(envpath, 'r') as f:
-            env_ = {}
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                equals_index = line.find('=')
-                if equals_index == -1:
-                    continue
-                key = line[:equals_index].strip()
-                value = line[equals_index + 1:].strip()
-                env_.update({key: value})
-            return env_
+@service
+class EnvValueService:
+    @action
+    def serialize(trm: EnvValue) -> Str:
+        if isinstance(trm, (dict, list, tuple)):
+            import json
+            formatted_value = json.dumps(trm)
+        elif isinstance(trm, bool):
+            formatted_value = str(trm).lower()
+        elif trm is None:
+            formatted_value = ""
+        else:
+            formatted_value = str(trm)
 
-    @typed
-    def environ() -> Dict:
+        formatted_value = (
+            formatted_value.replace("\\", "\\\\")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+            .replace('"', '\\"')
+        )
+
+        if " " in formatted_value and not (
+            formatted_value.startswith('"') and formatted_value.endswith('"')
+        ):
+            formatted_value = f'"{formatted_value}"'
+
+        return formatted_value
+
+    @action
+    def parse(trm: Str) -> 'EnvValueService':
+        import json
+        value = str(trm)
+        from typed import term, Int, Float, List, Set
+
         try:
-            return os.environ
-        except Exception as e:
-            raise EnvErr(e)
+            processed_value = value.replace("'", '"')
+            parsed_value = json.loads(processed_value)
 
-    @typed
-    def print(envpath: Maybe(Path)=None) -> Nill:
-        print(env.get_all(envpath))
+            if isinstance(parsed_value, (list, dict)) or (
+                isinstance(parsed_value, (int, float, bool))
+                and not value.isdigit()
+                and not (value.count('.') == 1 and value.replace('.', '').isdigit())
+            ):
+                return parsed_value
+            elif isinstance(parsed_value, str) and parsed_value != value:
+                return term(value, EnvValueService)
+            elif isinstance(parsed_value, (int, float, bool)) and (
+                value.isdigit() or (value.count('.') == 1 and value.replace('.', '').isdigit())
+            ):
+                return term(parsed_value, Float)
+            elif isinstance(parsed_value, list) and value.startswith('[') and value.endswith(']'):
+                return term(parsed_value, List)
+            elif isinstance(parsed_value, dict) and value.startswith('{') and value.endswith('}'):
+                return term(parsed_value, Dict)
+            elif isinstance(parsed_value, list) and value.startswith('{') and value.endswith('}'):
+                return term(parsed_value, Set)
+        except json.JSONDecodeError:
+            pass
 
-    @typed
-    def get(env: Env='') -> Any:
-        if not env.is_defined(env):
-            raise EnvErr(f"The env '{env}' is not defined.")
-        value = os.getenv(env)
+        if value.isdigit():
+            try:
+                return term(value, Int)
+            except ValueError:
+                pass
+
+        if value.count('.') == 1 and value.replace('.', '').isdigit():
+            try:
+                return term(value, Float)
+            except ValueError:
+                pass
+
+        return value
+
+@service(err=EnvErr)
+class EnvService:
+    @action
+    def get(trm: Env, default=None) -> EnvValueService:
+        import os
+        value = os.getenv(trm)
+        if value is None:
+            from typed import term
+            return term(default, EnvValueService)
+
+        import json
         try:
             processed_value = value.replace("'", '"')
             parsed_value = json.loads(processed_value)
             if isinstance(parsed_value, (list, dict)) or (isinstance(parsed_value, (int, float, bool)) and not value.isdigit() and not (value.count('.') == 1 and value.replace('.', '').isdigit())):
                 return parsed_value
             elif isinstance(parsed_value, str) and parsed_value != value:
-                return value
+                return term(value, EnvValueService)
             elif isinstance(parsed_value, (int, float, bool)) and (value.isdigit() or (value.count('.') == 1 and value.replace('.', '').isdigit())):
-                return parsed_value
+                return term(parsed_value, EnvValueService)
             elif isinstance(parsed_value, list) and value.startswith('[') and value.endswith(']'):
                 return parsed_value
             elif isinstance(parsed_value, dict) and value.startswith('{') and value.endswith('}'):
@@ -71,86 +118,56 @@ class env:
                 pass
         return value
 
-    @typed
-    def set(env: Env='', value: Any=Nill) -> Nill:
-        try:
-            if env and value:
-                os.environ[env] = value
-        except Exception as e:
-            raise EnvErr(e)
+    @action
+    def set(trm: Env, value: EnvValue) -> 'EnvService':
+        import os
+        os.environ[trm] = value
 
-    @typed
-    def typeof(env: Env='') -> TYPE:
-        value = env.get(env)
-        if value is None:
-            return None
-        return type(value)
+    @action
+    def typeof(trm: Env):
+        value = EnvService.get(trm)
+        from typed import prop
+        return prop.typeof(value)
 
-    @typed
-    def has_value(env: Env='', value: Any=Nill) -> Bool:
-        env_value = env.get(env)
-        if env_value == value:
-            return True
-        return False
+    @action
+    def match(trm: Env, value: EnvValue) -> Bool:
+        value_ = EnvService.get(trm)
+        return value_ == value
 
 @service
-class envfile:
+class EnvsService:
     @action
-    def __new__(cls, trm=None) -> 'envfile':
+    def serialize(trm: Envs) -> Dict(Str):
+        from runtime.mods.env.checker import env_require
+        serialized_envs = {}
+        for key, value in trm.items():
+            env_require.isenv(key)
+            serialized_envs[key] = EnvValueService.serialize(value)
+        return serialized_envs
+
+@service
+class EnvFileService(File):
+    @action
+    def read(trm: EnvFile) -> EnvsService:
+        from runtime.helper.env import _read
+        return _read(trm)
+
+    @action
+    def write(trm: EnvFile, envs=Envs) -> 'EnvFileService':
+        from utils.path import Path
         from typed import term
 
-        if trm is not None:
-            from typed import require
-            require.isterm(trm, File)
-            return term(trm, ...)
-
-        from utils.path import File
-        current_dir = term(__file__, File).absof().parent()
-
-        from typed.poly import join
-        while True:
-            envpath = join(current_dir, ".env")
-            if envpath in File:
-                return term(envpath, ...)
-
-            parent_dir = term(envpath, File).parent()
-            if parent_dir == current_dir:
-                from utils.err import NotFound
-                raise NotFound(message="Env file not found in any parent dir.")
-            current_dir = parent_dir
-
-        return term(current_dir, ...)
+        envfile = term(term(trm, Path).touch(), File)
+        serialized_data = EnvsService.serialize(envs)
+        content = "\n".join([f"{key}={value}" for key, value in serialized_data.items()])
+        envfile.write(content)
+        return term(envfile, ...)
 
     @action
-    def load(trm) -> 'envfile':
-        if not trm:
-            envpath = env.dotenv()
-            if not envpath:
-                envpath = '.env'
+    def load(trm: EnvFile) -> 'EnvFileService':
+        envs = trm.read()
+        for key, value in envs.items():
+            EnvService.set(key, value)
 
-        if not path.exists(envpath):
-            raise EnvErr(f".env file not found.")
-        with open(envpath, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                comment_index = line.find('#')
-                if comment_index != -1:
-                    line = line[:comment_index].strip()
-                equals_index = line.find('=')
-                if equals_index == -1:
-                    continue
-                key = line[:equals_index].strip()
-                value = line[equals_index + 1:].strip()
-                if value.startswith('"') and value.endswith('"'):
-                    value = value[1:-1]
-                elif value.startswith("'") and value.endswith("'"):
-                    value = value[1:-1]
-                value = value.replace('\\n', '\n')
-                value = value.replace('\\r', '\r')
-                value = value.replace('\\t', '\t')
-                value = value.replace('\\"', '"')
-                value = value.replace("\\'", "'")
-                value = value.replace('\\\\', '\\')
-                os.environ[key] = value
+        from typed import term
+        return term(trm, ...)

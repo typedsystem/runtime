@@ -9,6 +9,14 @@ class EnvChecker(Checker):
         from typed import check
         return check.isterm(entity, Env)
 
+    def isenvfile(self, entity: object) -> bool:
+        from runtime.mods.env.types import EnvFile
+        if self.explode:
+            from typed import require
+            require.isterm(entity, EnvFile)
+        from typed import check
+        return check.isterm(entity, EnvFile)
+
     def exists(self, entity: object) -> bool:
         from runtime.mods.env.types import Env
         if self.explode:
@@ -23,3 +31,6 @@ class EnvChecker(Checker):
                 )
         import os
         return os.getenv(entity) is not None
+
+env_check   = EnvChecker(explode=False)
+env_require = EnvChecker(explode=True)

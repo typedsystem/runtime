@@ -1,39 +1,44 @@
-from typed import service, action, Bool, Dict
-from utils.mods.path.types import Path
+from typed import service, action, Str, Bool, List, Union
+from utils.path import Path
+from utils.number import Nat
+from runtime.mods.env.enriched import Envs, Env
+from runtime.mods.shell.types import ShellCmd
 
 @service
-class shell:
+class ShellService:
+    @action
+    def __split__(trm) -> List(Str):
+        import shlex
+        return shlex.split(str(trm))
+
     @action
     def run(
-        trm, 
+        trm: ShellCmd, 
         cwd: Path=None, 
-        envs: Union(List(Env), Dict(Str, keys=Env))={},
-        terminate: Bool=True, 
-        **kargs: Dict
+        envs: Union(List(Env), Envs)={},
+        terminate: Bool=True
     ):
-        if not trm in Union(List, Tuple):
-            if trm in File:
-                trm_list = file.read(trm)
-            else:
-                trm_list = shlex.split(str(trm))
-        else:
-            trm_list = [str(x) for x in trm]
+        trm_list = ShellService.__split__(trm)
 
-        env = os.environ.copy()
+        shell_envs = {}
         if envs in List:
-            for env_var in envs:
-                if env_var in os.environ:
-                    env[env_var] = os.environ[env_var]
-        if envs in Dict:
-            env.update(envs)
+            import os
+            for env in envs:
+                shell_envs.update({env: os.getenv(env)})
 
+        else:
+            from runtime.mods.env.enriched import EnvValue
+            for env, value in envs.items():
+                shell_envs.update({env: EnvValue.serialize(value)})
+
+        import subprocess
         if terminate:
             process = subprocess.run(
                 trm_list,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                env=env,
+                env=shell_envs,
                 check=False
             )
             return process.returncode, process.stderr, process.stdout
@@ -46,7 +51,7 @@ class shell:
                     stderr=subprocess.STDOUT,
                     text=True,
                     bufsize=1,
-                    env=env
+                    env=shell_envs
                 )
                 for line in process.stdout:
                     print(line, end='')
@@ -57,11 +62,11 @@ class shell:
                 return str(e), None
 
     @action
-    def sleep(seconds: Pos=1) -> Nill:
+    def sleep(seconds: Nat=1):
         import time
         return time.sleep(seconds)
 
     @action
-    def exit(code: Nat=0) -> Nill:
+    def exit(code: Nat=0):
         import sys
         return sys.exit(code)

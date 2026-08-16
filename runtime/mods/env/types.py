@@ -1,16 +1,15 @@
-from typed import Regex, Union, Null, Str, List, Dict, prop
+from typed import Regex, Union, Null, Str, Int, Float, List, Dict, Filtered, prop, Nill
+from utils.path import File
+from runtime.helper.env import _is_envfile
 
-Env = Union(Regex(r"^[A-Z0-9_]+$"), Null(Str))
-EnvsList = List(Env)
-EnvsDict = Dict(key=Env)
-Envs = Union(EnvsList, EnvsDict)
+Env      = Union(Regex(r"^[A-Z0-9_]+$"), Null(Str))
+EnvValue = Union(Str, Int, Float, List, Dict, Nill)
+Envs = Dict(EnvValue, key=Env)
+EnvFile  = Filtered(File, _is_envfile)
 
 prop.set.nameof(Env, "Env")
-prop.set.nameof(EnvsList, "EnvsList")
-prop.set.nameof(EnvsDict, "EnvsDict")
-prop.set.nameof(Envs, "Envs")
+prop.set.nameof(Envs, "EnvsDict")
+prop.set.nameof(EnvFile, "EnvFile")
 
 prop.set.nullof(Env, "")
-prop.set.nullof(EnvsList, [])
-prop.set.nullof(EnvsDict, {})
 prop.set.nullof(Envs, {})

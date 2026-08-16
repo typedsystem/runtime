@@ -1,16 +1,11 @@
-from typed import Filtered, Union, Str, prop
-from utils.mods.types import Null
-from utils.helper.shell import _is_cmd, _is_script
-from utils.mods.path.types import File
+from typed import Filtered, Union, Str, Null, prop
+from utils.path import File
+from runtime.helper.shell import _is_cmd, _is_script
 
-Cmd    = Union(Filtered(Str, _is_cmd), Null(Str))
-Script = Filtered(File, _is_script)
-Shell  = Union(Cmd, Script)
+ShellCmd    = Union(Filtered(Str, _is_cmd), Null(Str))
+ShellScript = Filtered(File, _is_script)
 
-prop.set.nameof(Cmd,    "Cmd")
-prop.set.nameof(Script, "Script")
-prop.set.nameof(Shell,  "Shell")
+prop.set.nameof(ShellCmd,    "ShellCmd")
+prop.set.nameof(ShellScript, "ShellScript")
 
-prop.set.nullof(Cmd, "")
-prop.set.nullof(Shell, "")
-
+prop.set.nullof(ShellCmd, "")
