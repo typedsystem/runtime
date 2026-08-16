@@ -1,1 +1,2 @@
-git+https://github.com/typedsystem/typed
+typedsystem/typed
+typedsystem/utils

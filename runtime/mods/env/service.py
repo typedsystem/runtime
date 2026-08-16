@@ -1,59 +1,9 @@
-import os
-import json
-from typed import typed, Maybe, Nill, Regex, Dict, Any, Bool, TYPE
-from utils.mods.path import path, Path
+from typed.func import service, action
+from utils.path import File
+from runtime.mods.env.err import EnvErr
 
-Env = Regex(r"^[A-Z0-9_]+$")
-Env.__display__ = "Env"
-
-class EnvErr(Exception): pass
-
+@service(err=EnvErr)
 class env:
-    @typed
-    def dotenv() -> Maybe(Path):
-        current_dir = path.abs(path.dirname(__file__))
-        while True:
-            envpath = path.join(current_dir, ".env")
-            if path.exists(envpath):
-                return envpath
-            parent_dir = path.dirname(current_dir)
-            if parent_dir == current_dir:
-                return None
-            current_dir = parent_dir
-
-    @typed
-    def load(envpath: Maybe(Path)=None) -> Nill:
-        if not envpath:
-            envpath = env.dotenv()
-            if not envpath:
-                envpath = '.env'
-        if not path.exists(envpath):
-            raise EnvErr(f".env file not found.")
-        with open(envpath, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                comment_index = line.find('#')
-                if comment_index != -1:
-                    line = line[:comment_index].strip()
-                equals_index = line.find('=')
-                if equals_index == -1:
-                    continue
-                key = line[:equals_index].strip()
-                value = line[equals_index + 1:].strip()
-                if value.startswith('"') and value.endswith('"'):
-                    value = value[1:-1]
-                elif value.startswith("'") and value.endswith("'"):
-                    value = value[1:-1]
-                value = value.replace('\\n', '\n')
-                value = value.replace('\\r', '\r')
-                value = value.replace('\\t', '\t')
-                value = value.replace('\\"', '"')
-                value = value.replace("\\'", "'")
-                value = value.replace('\\\\', '\\')
-                os.environ[key] = value
-
     @typed
     def all(envpath: Maybe(Path)=None) -> Dict:
         if not envpath:
@@ -86,17 +36,6 @@ class env:
     @typed
     def print(envpath: Maybe(Path)=None) -> Nill:
         print(env.get_all(envpath))
-
-    @typed
-    def is_defined(env: Env='') -> Any:
-        try:
-            if os.getenv(env):
-                return True
-            return False
-        except Exception as e:
-            raise EnvErr(e)
-
-    exists = is_defined
 
     @typed
     def get(env: Env='') -> Any:
@@ -141,7 +80,7 @@ class env:
             raise EnvErr(e)
 
     @typed
-    def type(env: Env='') -> TYPE:
+    def typeof(env: Env='') -> TYPE:
         value = env.get(env)
         if value is None:
             return None
@@ -153,3 +92,65 @@ class env:
         if env_value == value:
             return True
         return False
+
+@service
+class envfile:
+    @action
+    def __new__(cls, trm=None) -> 'envfile':
+        from typed import term
+
+        if trm is not None:
+            from typed import require
+            require.isterm(trm, File)
+            return term(trm, ...)
+
+        from utils.path import File
+        current_dir = term(__file__, File).absof().parent()
+
+        from typed.poly import join
+        while True:
+            envpath = join(current_dir, ".env")
+            if envpath in File:
+                return term(envpath, ...)
+
+            parent_dir = term(envpath, File).parent()
+            if parent_dir == current_dir:
+                from utils.err import NotFound
+                raise NotFound(message="Env file not found in any parent dir.")
+            current_dir = parent_dir
+
+        return term(current_dir, ...)
+
+    @action
+    def load(trm) -> 'envfile':
+        if not trm:
+            envpath = env.dotenv()
+            if not envpath:
+                envpath = '.env'
+
+        if not path.exists(envpath):
+            raise EnvErr(f".env file not found.")
+        with open(envpath, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                comment_index = line.find('#')
+                if comment_index != -1:
+                    line = line[:comment_index].strip()
+                equals_index = line.find('=')
+                if equals_index == -1:
+                    continue
+                key = line[:equals_index].strip()
+                value = line[equals_index + 1:].strip()
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                elif value.startswith("'") and value.endswith("'"):
+                    value = value[1:-1]
+                value = value.replace('\\n', '\n')
+                value = value.replace('\\r', '\r')
+                value = value.replace('\\t', '\t')
+                value = value.replace('\\"', '"')
+                value = value.replace("\\'", "'")
+                value = value.replace('\\\\', '\\')
+                os.environ[key] = value
