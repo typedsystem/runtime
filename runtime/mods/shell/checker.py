@@ -2,31 +2,23 @@ from typed.checker import Checker
 
 class ShellChecker(Checker):
     def iscmd(self, entity: object) -> bool:
-        from utils.mods.shell.types import Cmd
+        from runtime.mods.shell.types import ShellCmd
         if self.explode:
             from typed import require
-            require.isterm(entity, Cmd)
+            require.isterm(entity, ShellCmd)
         from typed import check
-        return check.isterm(entity, Cmd)
+        return check.isterm(entity, ShellCmd)
 
     def isscript(self, entity: object) -> bool:
-        from utils.mods.shell.types import Script
+        from runtime.mods.shell.types import ShellScript
         if self.explode:
             from typed import require
-            require.isterm(entity, Script)
+            require.isterm(entity, ShellScript)
         from typed import check
-        return check.isterm(entity, Script)
-
-    def isshell(self, entity: object) -> bool:
-        from utils.mods.shell.types import Shell
-        if self.explode:
-            from typed import require
-            require.isterm(entity, Shell)
-        from typed import check
-        return check.isterm(entity, Shell)
+        return check.isterm(entity, ShellScript)
 
     def exists(self, entity: object) -> bool:
-        cmd = self.isshell(entity)
+        cmd = self.iscmd(entity)
         from shutil import which
         exists_ = which(cmd)
         if exists_:
@@ -39,5 +31,5 @@ class ShellChecker(Checker):
             )
         return False
 
-shell_check   = ShellChecker(quantifier=None, explode=False)
-shell_require = ShellChecker(quantifier=None, explode=True)
+shell_check   = ShellChecker(explode=False)
+shell_require = ShellChecker(explode=True)

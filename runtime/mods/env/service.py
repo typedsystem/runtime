@@ -4,7 +4,7 @@ from utils.path import File
 from runtime.mods.env.types import Envs, EnvValue, EnvFile, Env
 from runtime.mods.env.err import EnvErr
 
-@service
+@service(err=EnvErr)
 class EnvValueService:
     @action
     def serialize(trm: EnvValue) -> Str:

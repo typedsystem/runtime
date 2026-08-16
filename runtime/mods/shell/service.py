@@ -3,8 +3,9 @@ from utils.path import Path
 from utils.number import Nat
 from runtime.mods.env.enriched import Envs, Env
 from runtime.mods.shell.types import ShellCmd
+from runtime.mods.shell.err import ShellErr
 
-@service
+@service(err=ShellErr)
 class ShellService:
     @action
     def __split__(trm) -> List(Str):
