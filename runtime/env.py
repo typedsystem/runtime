@@ -6,6 +6,9 @@ __imports__ = {
     ],
     "runtime.mods.env.err": [
         "EnvErr"
+    ],
+    "runtime.mods.env.service": [
+        "env"
     ]
 }
 
@@ -14,3 +17,4 @@ if lazy(__imports__):
         Env, Envs, EnvValue, EnvFile
     )
     from runtime.mods.env.err import EnvErr
+    from runtime.mods.env.service import env

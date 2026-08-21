@@ -1,23 +1,39 @@
-
 def _read(trm):
-    from typed import term
-    from utils import require
-    from utils.path import File
+    import os
+    import re
     from runtime.mods.env.checker import env_require
-    require.path.isfile(trm)
-    lines = term(trm, File).linesof()
+
+    if not os.path.isfile(trm):
+        raise ValueError(f"File not found: {trm}")
+
     envs = {}
-    for line in lines:
-        line = line.strip()
-        if not line or line.startswith('#'):
-            continue
-        equals_index = line.find('=')
-        if equals_index == -1:
-            continue
-        key = line[:equals_index].strip()
+    with open(trm, 'r', encoding='utf-8') as file:
+        content = file.read()
+
+    pattern = re.compile(
+        r'^[ \t]*([a-zA-Z0-9_]+)[ \t]*=[ \t]*(?:'
+        r'\'((?:[^\'\\]|\\.)*)\'|'
+        r'"((?:[^"\\]|\\.)*)"|'
+        r'([^#\n\r]*)'
+        r')',
+        re.MULTILINE
+    )
+
+    for match in pattern.finditer(content):
+        key = match.group(1)
         env_require.isenv(key)
-        value = line[equals_index + 1:].strip()
-        envs.update({key: value})
+
+        val = match.group(2)
+        if val is None:
+            val = match.group(3)
+
+        if val is None:
+            val = match.group(4).strip()
+        else:
+            val = val.replace('\\"', '"').replace("\\'", "'").replace('\\n', '\n')
+
+        envs[key] = val
+
     return envs
 
 def _is_envfile(trm):

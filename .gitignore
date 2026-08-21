@@ -6,4 +6,4 @@ wheels/
 *.egg-info
 .env
 .venv
-*.ignore.py
+*.ignore.*
