@@ -1,8 +1,8 @@
-from typed import service, action, Str, Bool, List, Union
+from typed import service, action, Str, Int, Bool, List, Union, Maybe
 from utils.path import Path
 from utils.number import Nat
 from runtime.mods.env.enriched import Envs, Env
-from runtime.mods.shell.types import ShellCmd, Output
+from runtime.mods.shell.meta import OUTPUT
 from runtime.mods.shell.err import ShellErr
 
 @service(err=ShellErr)
@@ -14,11 +14,12 @@ class ShellService:
 
     @action
     def run(
-        trm: ShellCmd, 
-        cwd: Path=None, 
+        trm, 
+        cwd: Path=".", 
         envs: Union(List(Env), Envs)={},
-        terminate: Bool=True
-    ) -> Output:
+        terminate: Bool=True,
+        timeout: Maybe(Int)=None
+    ) -> OUTPUT:
         trm_list = ShellService.__split__(trm)
         shell_envs = {}
         if envs in List:
@@ -34,19 +35,27 @@ class ShellService:
         from runtime.mods.shell.types import Output
 
         if terminate:
-            process = subprocess.run(
-                trm_list,
-                cwd=cwd,
-                capture_output=True,
-                text=True,
-                env=shell_envs,
-                check=False
-            )
-            return Output(
-                code=process.returncode,
-                stdout=process.stdout,
-                stderr=process.stderr
-            )
+            try:
+                process = subprocess.run(
+                    trm_list,
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    env=shell_envs,
+                    check=False,
+                    timeout=timeout
+                )
+                return Output(
+                    code=process.returncode,
+                    stdout=process.stdout,
+                    stderr=process.stderr
+                )
+            except subprocess.TimeoutExpired as e:
+                return Output(
+                    code=124,
+                    stdout=str(e.stdout) if e.stdout else "",
+                    stderr=f"Command timed out after {timeout} seconds"
+                )
         else:
             import sys
             try:
@@ -59,13 +68,23 @@ class ShellService:
                     bufsize=1,
                     env=shell_envs
                 )
+                stdout_lines = []
                 for line in process.stdout:
                     print(line, end='')
-                process.wait()
+                    stdout_lines.append(line)
+
+                process.wait(timeout=timeout)
                 return Output(
                     code=process.returncode,
-                    stdout="",
+                    stdout="".join(stdout_lines),
                     stderr=""
+                )
+            except subprocess.TimeoutExpired:
+                process.kill()
+                return Output(
+                    code=124,
+                    stdout="".join(stdout_lines),
+                    stderr=f"Command timed out after {timeout} seconds"
                 )
             except Exception as e:
                 print(f"Error in Popen: {e}", file=sys.stderr)
@@ -84,3 +103,5 @@ class ShellService:
     def exit(code: Nat=0):
         import sys
         return sys.exit(code)
+
+shell = ShellService

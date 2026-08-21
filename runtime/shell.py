@@ -7,6 +7,9 @@ __imports__ = {
     "runtime.mods.shell.enriched": [
         "Shell"
     ],
+    "runtime.mods.shell.service": [
+        "shell"
+    ],
     "runtime.mods.shell.err": [
         "ShellErr"
     ]
@@ -15,4 +18,5 @@ __imports__ = {
 if lazy(__imports__):
     from runtime.mods.shell.types import ShellCmd, ShellScript
     from runtime.mods.shell.enriched import Shell
+    from runtime.mods.shell.service import shell
     from runtime.mods.shell.err import ShellErr
